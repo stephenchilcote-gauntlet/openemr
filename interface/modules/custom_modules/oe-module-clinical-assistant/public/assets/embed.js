@@ -57,8 +57,17 @@
 
         wrapper.appendChild(frame);
         document.body.appendChild(wrapper);
+
+        // Push page content left so it doesn't sit behind the fixed sidebar.
+        // A simple body marginRight doesn't work because OpenEMR sets
+        // body { width: max-content } and uses absolutely-sized iframes.
         if (window.innerWidth >= 1024) {
-            document.body.style.marginRight = '380px';
+            var layoutStyle = document.createElement('style');
+            layoutStyle.id = 'clinical-assistant-layout';
+            layoutStyle.textContent =
+                'html, body { max-width: calc(100vw - 380px) !important; width: calc(100vw - 380px) !important; overflow-x: auto; }' +
+                '#mainBox { max-width: 100% !important; }';
+            document.head.appendChild(layoutStyle);
         }
     }
 
