@@ -3,6 +3,11 @@
         return;
     }
 
+    // Skip login/logout pages — no session exists, sidebar_frame would redirect top window
+    if (/\/(login|login_screen)\.php/i.test(window.location.pathname)) {
+        return;
+    }
+
     var SIDEBAR_ID = 'openemr-clinical-assistant-sidebar';
     if (document.getElementById(SIDEBAR_ID)) {
         return;
