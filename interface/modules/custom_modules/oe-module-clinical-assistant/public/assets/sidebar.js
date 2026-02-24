@@ -93,11 +93,31 @@ class SidebarApp {
   }
 
   refreshContext() {
-    const globals = window.top || window
-    const openemrGlobals = globals.openemrAgentContext || {}
-    const patientID = openemrGlobals.pid || null
-    const encounterID = openemrGlobals.encounter || null
-    const patientName = openemrGlobals.patient_name || null
+    const top = window.top || window
+    let patientID = null
+    let encounterID = null
+    let patientName = null
+
+    // Read directly from Knockout view model (most reliable, always fresh)
+    try {
+      const appVM = top.app_view_model
+      if (appVM && appVM.application_data && appVM.application_data.patient) {
+        const patient = appVM.application_data.patient()
+        if (patient) {
+          patientID = patient.pid ? patient.pid() : null
+          patientName = patient.pname ? patient.pname() : null
+          encounterID = patient.selectedEncounterID ? patient.selectedEncounterID() : null
+        }
+      }
+    } catch (_e) { /* cross-origin or VM not available */ }
+
+    // Fallback to openemrAgentContext set by embed.js
+    if (!patientID) {
+      const ctx = top.openemrAgentContext || {}
+      patientID = ctx.pid || null
+      encounterID = encounterID || ctx.encounter || null
+      patientName = patientName || ctx.patient_name || null
+    }
 
     this.state.patientID = patientID
     this.state.encounterID = encounterID
