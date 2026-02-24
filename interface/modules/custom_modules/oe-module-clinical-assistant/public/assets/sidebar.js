@@ -114,7 +114,8 @@ class SidebarApp {
 
   async api(path, options = {}) {
     const proxyBase = window.OPENEMR_AGENT_PROXY || DEFAULT_PROXY_BASE
-    const url = `${proxyBase}?path=${encodeURIComponent(path)}`
+    const separator = proxyBase.includes("?") ? "&" : "?"
+    const url = `${proxyBase}${separator}path=${encodeURIComponent(path)}`
     const headers = {
       "Content-Type": "application/json",
       ...(options.headers || {}),

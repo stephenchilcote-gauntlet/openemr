@@ -9,7 +9,8 @@
     }
 
     var moduleRoot = '/interface/modules/custom_modules/oe-module-clinical-assistant/public';
-    var frameSrc = moduleRoot + '/sidebar_frame.php';
+    var site = new URLSearchParams(window.location.search).get('site') || 'default';
+    var frameSrc = moduleRoot + '/sidebar_frame.php?site=' + encodeURIComponent(site);
 
     function collectContext() {
         var topWindow = window.top || window;

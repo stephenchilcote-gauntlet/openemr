@@ -13,6 +13,7 @@
 require_once __DIR__ . '/../../../../globals.php';
 
 $assetBase = $GLOBALS['web_root'] . '/interface/modules/custom_modules/oe-module-clinical-assistant/public/assets';
+$site = $_GET['site'] ?? 'default';
 ?>
 <!doctype html>
 <html lang="en">
@@ -71,7 +72,7 @@ $assetBase = $GLOBALS['web_root'] . '/interface/modules/custom_modules/oe-module
 </aside>
 
 <script>
-    window.OPENEMR_AGENT_PROXY = "<?= attr($GLOBALS['web_root'] . '/interface/modules/custom_modules/oe-module-clinical-assistant/public/proxy.php') ?>";
+    window.OPENEMR_AGENT_PROXY = "<?= attr($GLOBALS['web_root'] . '/interface/modules/custom_modules/oe-module-clinical-assistant/public/proxy.php?site=' . urlencode($site)) ?>";
 </script>
 <script src="<?= attr($assetBase . '/sidebar.js') ?>"></script>
 </body>
