@@ -1,0 +1,94 @@
+<?php
+
+/**
+ * Clinical Assistant proxy endpoint
+ *
+ * @package   OpenEMR
+ * @link      https://www.open-emr.org
+ * @author    OpenEMR Community
+ * @copyright Copyright (c) 2026 OpenEMR
+ * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
+ */
+
+require_once __DIR__ . '/../../../../globals.php';
+
+$path = isset($_GET['path']) ? (string)$_GET['path'] : '';
+if ($path === '') {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Missing path']);
+    exit;
+}
+
+if ($path[0] !== '/') {
+    $path = '/' . $path;
+}
+
+if (!preg_match('#^/api/|^/ui(?:/|$)#', $path)) {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Unsupported path']);
+    exit;
+}
+
+$userId = (string)($_SESSION['authUserID'] ?? $_SESSION['authUser'] ?? '');
+if ($userId === '') {
+    http_response_code(401);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Authentication required']);
+    exit;
+}
+
+$baseUrl = rtrim((string)(getenv('OPENEMR_AGENT_API_URL') ?: 'http://127.0.0.1:8000'), '/');
+$targetUrl = $baseUrl . $path;
+
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$requestBody = file_get_contents('php://input') ?: '';
+
+$ch = curl_init($targetUrl);
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
+$headers = [
+    'openemr_user_id: ' . $userId,
+    'Accept: application/json',
+];
+$contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+if ($contentType !== '') {
+    $headers[] = 'Content-Type: ' . $contentType;
+}
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+if ($method !== 'GET' && $method !== 'HEAD') {
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $requestBody);
+}
+
+$responseHeaders = [];
+curl_setopt($ch, CURLOPT_HEADERFUNCTION, static function ($curl, $headerLine) use (&$responseHeaders) {
+    $len = strlen($headerLine);
+    $parts = explode(':', $headerLine, 2);
+    if (count($parts) === 2) {
+        $name = strtolower(trim($parts[0]));
+        $value = trim($parts[1]);
+        $responseHeaders[$name] = $value;
+    }
+    return $len;
+});
+
+$responseBody = curl_exec($ch);
+if ($responseBody === false) {
+    http_response_code(502);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Agent backend unreachable']);
+    curl_close($ch);
+    exit;
+}
+
+$status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+http_response_code($status > 0 ? $status : 200);
+header('Content-Type: ' . ($responseHeaders['content-type'] ?? 'application/json'));
+echo $responseBody;
