@@ -65,8 +65,8 @@
             var layoutStyle = document.createElement('style');
             layoutStyle.id = 'clinical-assistant-layout';
             layoutStyle.textContent =
-                'html, body { max-width: calc(100vw - 380px) !important; width: calc(100vw - 380px) !important; overflow-x: auto; }' +
-                '#mainBox { max-width: 100% !important; }';
+                'html, body { max-width: calc(100vw - 380px) !important; width: calc(100vw - 380px) !important; min-width: 0 !important; overflow-x: auto; }' +
+                '#mainBox { max-width: 100% !important; overflow-x: hidden; }';
             document.head.appendChild(layoutStyle);
         }
     }
