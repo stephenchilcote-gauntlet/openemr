@@ -18,63 +18,10 @@
     var site = new URLSearchParams(window.location.search).get('site') || 'default';
     var frameSrc = moduleRoot + '/sidebar_frame.php?site=' + encodeURIComponent(site);
 
-    function collectContext() {
-        var topWindow = window.top || window;
-        var pid = null;
-        var encounter = null;
-        var patientName = null;
-
-        // Modern OpenEMR tab interface stores patient in Knockout view model
-        try {
-            var appVM = topWindow.app_view_model;
-            if (appVM && appVM.application_data && appVM.application_data.patient) {
-                var patient = appVM.application_data.patient();
-                if (patient) {
-                    pid = patient.pid ? patient.pid() : null;
-                    patientName = patient.pname ? patient.pname() : null;
-                    encounter = patient.selectedEncounterID ? patient.selectedEncounterID() : null;
-                }
-            }
-        } catch (e) { /* view model not ready yet */ }
-
-        // Fallback to legacy window globals
-        if (!pid) {
-            pid = topWindow.pid || (topWindow.globals ? topWindow.globals.pid : null) || null;
-        }
-        if (!encounter) {
-            encounter = topWindow.encounter || (topWindow.globals ? topWindow.globals.encounter : null) || null;
-        }
-        if (!patientName) {
-            patientName = topWindow.patient_name || null;
-        }
-
-        topWindow.openemrAgentContext = {
-            pid: pid,
-            encounter: encounter,
-            patient_name: patientName
-        };
-    }
-
-    function subscribeToPatientChanges() {
-        var topWindow = window.top || window;
-        try {
-            var appVM = topWindow.app_view_model;
-            if (appVM && appVM.application_data && appVM.application_data.patient &&
-                typeof appVM.application_data.patient.subscribe === 'function') {
-                appVM.application_data.patient.subscribe(function () {
-                    collectContext();
-                });
-            }
-        } catch (e) { /* Knockout not available */ }
-    }
-
     function mount() {
         if (!document.body) {
             return;
         }
-
-        collectContext();
-        subscribeToPatientChanges();
 
         // --- Restructure DOM: wrap existing body children + sidebar in a flex row ---
         var outerShell = document.createElement('div');

@@ -45,6 +45,42 @@ $targetUrl = $baseUrl . $path;
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $requestBody = file_get_contents('php://input') ?: '';
 
+// For /api/chat POST requests, inject patient context from the PHP session.
+// The JS sidebar may not reliably detect the active patient from the iframe,
+// so the server-side session is the authoritative source.
+if ($method === 'POST' && preg_match('#^/api/chat$#', $path) && $requestBody !== '') {
+    $payload = json_decode($requestBody, true);
+    if (is_array($payload)) {
+        $sessionPid = !empty($pid) ? (string)$pid : null;
+        $sessionEncounter = !empty($encounter) ? (string)$encounter : null;
+        $patientName = null;
+        if ($sessionPid) {
+            require_once $GLOBALS['fileroot'] . '/library/patient.inc.php';
+            $ptData = getPatientData($sessionPid, 'fname, lname');
+            if ($ptData) {
+                $patientName = trim(($ptData['fname'] ?? '') . ' ' . ($ptData['lname'] ?? ''));
+            }
+        }
+        if (!isset($payload['page_context']) || !is_array($payload['page_context'])) {
+            $payload['page_context'] = [];
+        }
+        // Server-side values override client-side (authoritative source)
+        if ($sessionPid) {
+            $payload['page_context']['patient_id'] = $sessionPid;
+        }
+        if ($sessionEncounter) {
+            $payload['page_context']['encounter_id'] = $sessionEncounter;
+        }
+        if ($patientName) {
+            if (!isset($payload['page_context']['visible_data']) || !is_array($payload['page_context']['visible_data'])) {
+                $payload['page_context']['visible_data'] = [];
+            }
+            $payload['page_context']['visible_data']['patient_name'] = $patientName;
+        }
+        $requestBody = json_encode($payload);
+    }
+}
+
 $ch = curl_init($targetUrl);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

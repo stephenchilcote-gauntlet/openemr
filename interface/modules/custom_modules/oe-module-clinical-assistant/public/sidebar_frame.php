@@ -14,6 +14,18 @@ require_once __DIR__ . '/../../../../globals.php';
 
 $assetBase = $GLOBALS['web_root'] . '/interface/modules/custom_modules/oe-module-clinical-assistant/public/assets';
 $site = $_GET['site'] ?? 'default';
+
+// Resolve patient context from the PHP session for the sidebar header
+$sessionPid = !empty($pid) ? (string)$pid : null;
+$sessionEncounter = !empty($encounter) ? (string)$encounter : null;
+$sessionPatientName = null;
+if ($sessionPid) {
+    require_once $GLOBALS['fileroot'] . '/library/patient.inc.php';
+    $ptData = getPatientData($sessionPid, 'fname, lname');
+    if ($ptData) {
+        $sessionPatientName = trim(($ptData['fname'] ?? '') . ' ' . ($ptData['lname'] ?? ''));
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -73,6 +85,11 @@ $site = $_GET['site'] ?? 'default';
 
 <script>
     window.OPENEMR_AGENT_PROXY = "<?= attr($GLOBALS['web_root'] . '/interface/modules/custom_modules/oe-module-clinical-assistant/public/proxy.php?site=' . urlencode($site)) ?>";
+    window.OPENEMR_SESSION_CONTEXT = {
+        pid: <?= json_encode($sessionPid) ?>,
+        encounter: <?= json_encode($sessionEncounter) ?>,
+        patient_name: <?= json_encode($sessionPatientName) ?>
+    };
 </script>
 <script src="<?= attr($assetBase . '/sidebar.js') ?>"></script>
 </body>

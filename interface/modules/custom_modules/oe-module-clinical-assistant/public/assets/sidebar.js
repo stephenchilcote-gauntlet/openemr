@@ -93,39 +93,20 @@ class SidebarApp {
   }
 
   refreshContext() {
-    const top = window.top || window
-    let patientID = null
-    let encounterID = null
-    let patientName = null
+    // Patient context is injected server-side by sidebar_frame.php at load time.
+    // proxy.php re-reads the PHP session on every request, so the agent always
+    // gets the current patient regardless of what the sidebar header shows.
+    const ctx = window.OPENEMR_SESSION_CONTEXT || {}
+    this.state.patientID = ctx.pid || null
+    this.state.encounterID = ctx.encounter || null
+    this.state.patientName = ctx.patient_name || null
+    this.updateContextLine()
+  }
 
-    // Read directly from Knockout view model (most reliable, always fresh)
-    try {
-      const appVM = top.app_view_model
-      if (appVM && appVM.application_data && appVM.application_data.patient) {
-        const patient = appVM.application_data.patient()
-        if (patient) {
-          patientID = patient.pid ? patient.pid() : null
-          patientName = patient.pname ? patient.pname() : null
-          encounterID = patient.selectedEncounterID ? patient.selectedEncounterID() : null
-        }
-      }
-    } catch (_e) { /* cross-origin or VM not available */ }
-
-    // Fallback to openemrAgentContext set by embed.js
-    if (!patientID) {
-      const ctx = top.openemrAgentContext || {}
-      patientID = ctx.pid || null
-      encounterID = encounterID || ctx.encounter || null
-      patientName = patientName || ctx.patient_name || null
-    }
-
-    this.state.patientID = patientID
-    this.state.encounterID = encounterID
-    this.state.patientName = patientName
-
-    if (patientID) {
-      const encounterText = encounterID ? ` | Encounter: ${encounterID}` : ""
-      const nameText = patientName || patientID
+  updateContextLine() {
+    if (this.state.patientID) {
+      const encounterText = this.state.encounterID ? ` | Encounter: ${this.state.encounterID}` : ""
+      const nameText = this.state.patientName || this.state.patientID
       this.el.contextLine.textContent = `Patient: ${nameText}${encounterText}`
     } else {
       this.el.contextLine.textContent = "No patient selected"
