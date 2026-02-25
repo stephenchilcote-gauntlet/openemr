@@ -13,7 +13,7 @@
 namespace OpenEMR\Modules\ClinicalAssistant;
 
 use OpenEMR\Common\Utils\CacheUtils;
-use OpenEMR\Events\Core\ScriptFilterEvent;
+use OpenEMR\Events\Core\StyleFilterEvent;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 class Bootstrap
@@ -22,16 +22,16 @@ class Bootstrap
 
     public function subscribeToEvents(EventDispatcherInterface $eventDispatcher): void
     {
-        $eventDispatcher->addListener(ScriptFilterEvent::EVENT_NAME, $this->injectEmbedScript(...));
+        $eventDispatcher->addListener(StyleFilterEvent::EVENT_NAME, $this->injectEmbedScript(...));
     }
 
-    public function injectEmbedScript(ScriptFilterEvent $event): void
+    public function injectEmbedScript(StyleFilterEvent $event): void
     {
-        $scripts = $event->getScripts();
-        $script = CacheUtils::addAssetCacheParamToPath(self::EMBED_SCRIPT);
-        if (!in_array($script, $scripts, true)) {
-            $scripts[] = $script;
-            $event->setScripts($scripts);
+        $styles = $event->getStyles();
+        $script = '<script src="' . CacheUtils::addAssetCacheParamToPath(self::EMBED_SCRIPT) . '"></script>';
+        if (!in_array($script, $styles, true)) {
+            $styles[] = $script;
+            $event->setStyles($styles);
         }
     }
 }
