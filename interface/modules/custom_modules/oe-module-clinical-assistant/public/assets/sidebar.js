@@ -13,18 +13,24 @@ class SidebarApp {
       encounterID: null,
       patientName: null,
       pendingMessages: false,
+      showHistory: false,
+      sessions: [],
     }
 
     this.el = {
       statusPill: document.getElementById("status-pill"),
       statusText: document.getElementById("status-text"),
       contextLine: document.getElementById("context-line"),
-      historySelect: document.getElementById("history-select"),
+      historyToggle: document.getElementById("history-toggle"),
+      historyPanel: document.getElementById("history-panel"),
+      historyList: document.getElementById("history-list"),
+      chatShell: document.getElementById("chat-shell"),
       newConversation: document.getElementById("new-conversation"),
       chatArea: document.getElementById("chat-area"),
       chatInput: document.getElementById("chat-input"),
       sendButton: document.getElementById("send-button"),
       charCounter: document.getElementById("char-counter"),
+      sessionIdRow: document.getElementById("session-id-row"),
       newMessagesPill: document.getElementById("new-messages-pill"),
       reviewPanel: document.getElementById("review-panel"),
       reviewCards: document.getElementById("review-cards"),
@@ -57,45 +63,66 @@ class SidebarApp {
   }
 
   bindEvents() {
-    this.el.newConversation.addEventListener("click", () => this.createSession(true))
-    this.el.sendButton.addEventListener("click", () => this.sendMessage())
-    this.el.historySelect.addEventListener("change", (event) => {
-      const targetID = event.target.value
-      if (targetID) {
-        this.loadConversation(targetID)
-      }
+    this.el.newConversation.addEventListener("click", () => {
+      this.setHistoryVisible(false)
+      this.createSession(true)
     })
+
+    this.el.historyToggle.addEventListener("click", () => {
+      this.setHistoryVisible(!this.state.showHistory)
+    })
+
+    this.el.sendButton.addEventListener("click", () => this.sendMessage())
+
     this.el.chatInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault()
         this.sendMessage()
       }
     })
+
     this.el.chatInput.addEventListener("input", () => {
       this.resizeInput()
       this.updateCharacterCounter()
+      this.updateSendButtonVisibility()
     })
+
     this.el.newMessagesPill.addEventListener("click", () => {
       this.scrollToBottom(true)
       this.el.newMessagesPill.classList.add("hidden")
     })
+
+    if (this.el.sessionIdRow) {
+      this.el.sessionIdRow.addEventListener("click", () => {
+        if (this.state.sessionID) {
+          navigator.clipboard.writeText(this.state.sessionID).then(() => {
+            this.el.sessionIdRow.textContent = "Copied!"
+            setTimeout(() => this.updateSessionDisplay(), 1500)
+          })
+        }
+      })
+    }
+
     this.el.applyAll.addEventListener("click", () => this.bulkReview("approved"))
     this.el.rejectAll.addEventListener("click", () => this.bulkReview("rejected"))
     this.el.executeButton.addEventListener("click", () => this.executeManifest())
 
     this.el.chatArea.addEventListener("scroll", () => {
-      const nearBottom = this.isNearBottom()
-      if (nearBottom) {
+      if (this.isNearBottom()) {
         this.el.newMessagesPill.classList.add("hidden")
         this.state.pendingMessages = false
       }
     })
   }
 
+  setHistoryVisible(visible) {
+    this.state.showHistory = visible
+    this.el.historyPanel.classList.toggle("hidden", !visible)
+    this.el.chatShell.classList.toggle("hidden", visible)
+    this.el.historyToggle.classList.toggle("active", visible)
+  }
+
   refreshContext() {
-    // Patient context is injected server-side by sidebar_frame.php at load time.
-    // proxy.php re-reads the PHP session on every request, so the agent always
-    // gets the current patient regardless of what the sidebar header shows.
     const ctx = window.OPENEMR_SESSION_CONTEXT || {}
     this.state.patientID = ctx.pid || null
     this.state.encounterID = ctx.encounter || null
@@ -105,12 +132,28 @@ class SidebarApp {
 
   updateContextLine() {
     if (this.state.patientID) {
-      const encounterText = this.state.encounterID ? ` | Encounter: ${this.state.encounterID}` : ""
+      const encounterText = this.state.encounterID ? ` · Encounter: ${this.state.encounterID}` : ""
       const nameText = this.state.patientName || this.state.patientID
       this.el.contextLine.textContent = `Patient: ${nameText}${encounterText}`
     } else {
       this.el.contextLine.textContent = "No patient selected"
     }
+  }
+
+  updateSessionDisplay() {
+    if (!this.el.sessionIdRow) return
+    if (this.state.sessionID) {
+      this.el.sessionIdRow.textContent = `Session: ${this.state.sessionID.slice(0, 8)}…`
+      this.el.sessionIdRow.title = `Click to copy full ID: ${this.state.sessionID}`
+      this.el.sessionIdRow.classList.remove("hidden")
+    } else {
+      this.el.sessionIdRow.classList.add("hidden")
+    }
+  }
+
+  updateSendButtonVisibility() {
+    const hasText = this.el.chatInput.value.trim().length > 0
+    this.el.sendButton.classList.toggle("visible", hasText)
   }
 
   async api(path, options = {}) {
@@ -140,6 +183,7 @@ class SidebarApp {
       }
       this.state.pendingManifest = null
       this.renderReviewPanel()
+      this.updateSessionDisplay()
       await this.loadSessionList()
     } catch (error) {
       this.renderErrorBlock(`Failed to create a session: ${error.message}`)
@@ -150,24 +194,49 @@ class SidebarApp {
   async loadSessionList() {
     try {
       const sessions = await this.api("/api/sessions")
-      this.el.historySelect.innerHTML = ""
-      const placeholder = document.createElement("option")
-      placeholder.value = ""
-      placeholder.textContent = "Conversation history"
-      this.el.historySelect.appendChild(placeholder)
-
-      for (const session of sessions) {
-        const option = document.createElement("option")
-        option.value = session.session_id
-        const patient = session.patient_name || session.patient_id || "No patient"
-        option.textContent = `${session.first_message_preview || "(empty)"} · ${patient}`
-        if (session.session_id === this.state.sessionID) {
-          option.selected = true
-        }
-        this.el.historySelect.appendChild(option)
-      }
+      this.state.sessions = sessions
+      this.renderHistoryList()
     } catch (error) {
       this.renderErrorBlock(`Unable to load conversation history: ${error.message}`)
+    }
+  }
+
+  renderHistoryList() {
+    this.el.historyList.innerHTML = ""
+    const sessions = this.state.sessions
+
+    if (sessions.length === 0) {
+      const empty = document.createElement("div")
+      empty.className = "history-empty"
+      empty.textContent = "No previous conversations"
+      this.el.historyList.appendChild(empty)
+      return
+    }
+
+    for (const session of sessions) {
+      const btn = document.createElement("button")
+      btn.className = "history-item"
+      if (session.session_id === this.state.sessionID) {
+        btn.classList.add("active")
+      }
+
+      const preview = document.createElement("div")
+      preview.className = "history-item-preview"
+      preview.textContent = session.first_message_preview || "(empty)"
+      btn.appendChild(preview)
+
+      const meta = document.createElement("div")
+      meta.className = "history-item-meta"
+      const patient = session.patient_name || session.patient_id || "No patient"
+      meta.textContent = patient
+      btn.appendChild(meta)
+
+      btn.addEventListener("click", () => {
+        this.loadConversation(session.session_id)
+        this.setHistoryVisible(false)
+      })
+
+      this.el.historyList.appendChild(btn)
     }
   }
 
@@ -184,6 +253,8 @@ class SidebarApp {
 
       this.state.pendingManifest = data.manifest || null
       this.renderReviewPanel()
+      this.renderHistoryList()
+      this.updateSessionDisplay()
       this.scrollToBottom(true)
       return true
     } catch (_error) {
@@ -220,9 +291,11 @@ class SidebarApp {
     this.el.chatInput.value = ""
     this.resizeInput()
     this.updateCharacterCounter()
+    this.updateSendButtonVisibility()
 
     this.setStatus("thinking")
     this.toggleSend(false)
+    this.showTypingIndicator()
     const started = performance.now()
 
     try {
@@ -238,6 +311,7 @@ class SidebarApp {
       this.state.sessionID = data.session_id
       sessionStorage.setItem(SESSION_KEY, data.session_id)
 
+      this.hideTypingIndicator()
       const latencyMs = performance.now() - started
       this.renderMessage("assistant", data.response || "", {
         latencyMs,
@@ -249,6 +323,7 @@ class SidebarApp {
       this.setStatus(this.phaseToStatus(data.phase))
       await this.loadSessionList()
     } catch (error) {
+      this.hideTypingIndicator()
       this.renderRetryableError(error.message)
       this.setStatus("error")
     } finally {
@@ -272,9 +347,37 @@ class SidebarApp {
     return "ready"
   }
 
+  showTypingIndicator() {
+    this.hideTypingIndicator()
+    const indicator = document.createElement("div")
+    indicator.className = "typing-indicator"
+    indicator.id = "typing-indicator"
+    const spinner = document.createElement("span")
+    spinner.className = "typing-spinner"
+    indicator.appendChild(spinner)
+    const label = document.createElement("span")
+    label.className = "typing-label"
+    label.textContent = "Thinking…"
+    indicator.appendChild(label)
+    this.el.chatArea.appendChild(indicator)
+    this.scrollToBottom()
+  }
+
+  hideTypingIndicator() {
+    const existing = document.getElementById("typing-indicator")
+    if (existing) {
+      existing.remove()
+    }
+  }
+
   renderMessage(role, content, metadata = null) {
     const block = document.createElement("article")
     block.className = `message role-${role}`
+
+    const label = document.createElement("div")
+    label.className = "message-label"
+    label.textContent = role === "user" ? "You" : "Assistant"
+    block.appendChild(label)
 
     const markdown = document.createElement("div")
     markdown.className = "markdown"
@@ -317,7 +420,6 @@ class SidebarApp {
     block.className = "error-block"
     block.innerHTML = `<strong>Assistant error:</strong> ${this.escapeHtml(text)}`
     const retry = document.createElement("button")
-    retry.className = "clickable"
     retry.textContent = "Retry"
     retry.addEventListener("click", () => {
       block.remove()
@@ -367,8 +469,13 @@ class SidebarApp {
 
       const card = document.createElement("article")
       card.className = "review-card"
+      if (item.status === "approved" || item.status === "rejected") {
+        card.classList.add(`status-${item.status}`)
+      }
+
+      const statusBadge = `<span class="review-card-status badge-${item.status}">${item.status}</span>`
       card.innerHTML = `
-        <div><strong>${this.escapeHtml(item.resource_type)}</strong> · ${this.escapeHtml(item.action)}</div>
+        <div><strong>${this.escapeHtml(item.resource_type)}</strong> · ${this.escapeHtml(item.action)}${statusBadge}</div>
         <div>${this.escapeHtml(item.description || "No description")}</div>
       `
 
@@ -378,9 +485,14 @@ class SidebarApp {
 
       const actions = document.createElement("div")
       actions.className = "review-card-actions"
-      actions.appendChild(this.makeReviewButton("Apply", () => this.updateReviewItem(item.id, "approved", edit.value)))
-      actions.appendChild(this.makeReviewButton("Reject", () => this.updateReviewItem(item.id, "rejected", edit.value)))
-      actions.appendChild(this.makeReviewButton("Undo", () => this.updateReviewItem(item.id, "pending", edit.value)))
+      const applyBtn = this.makeReviewButton("Apply", "btn-sm btn-accent", () => this.updateReviewItem(item.id, "approved", edit.value))
+      const rejectBtn = this.makeReviewButton("Reject", "btn-sm btn-muted", () => this.updateReviewItem(item.id, "rejected", edit.value))
+      const undoBtn = this.makeReviewButton("Undo", "btn-sm btn-muted", () => this.updateReviewItem(item.id, "pending", edit.value))
+      if (item.status === "approved") applyBtn.classList.add("active-status")
+      if (item.status === "rejected") rejectBtn.classList.add("active-status")
+      actions.appendChild(applyBtn)
+      actions.appendChild(rejectBtn)
+      actions.appendChild(undoBtn)
       card.appendChild(actions)
       this.el.reviewCards.appendChild(card)
     }
@@ -389,9 +501,9 @@ class SidebarApp {
     this.el.executeButton.textContent = approved > 0 ? "Execute Changes" : "Discard All"
   }
 
-  makeReviewButton(label, onClick) {
+  makeReviewButton(label, className, onClick) {
     const button = document.createElement("button")
-    button.className = "clickable"
+    button.className = className
     button.textContent = label
     button.addEventListener("click", onClick)
     return button
@@ -480,9 +592,11 @@ class SidebarApp {
   }
 
   resizeInput() {
-    this.el.chatInput.style.height = "auto"
-    const next = Math.min(this.el.chatInput.scrollHeight, 130)
-    this.el.chatInput.style.height = `${next}px`
+    const el = this.el.chatInput
+    el.style.height = "auto"
+    const maxHeight = 100
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden"
   }
 
   updateCharacterCounter() {

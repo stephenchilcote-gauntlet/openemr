@@ -47,6 +47,8 @@
         outerShell.appendChild(sidebar);
         document.body.appendChild(outerShell);
 
+        setupContextBridge(frame);
+
         // --- Inject layout CSS ---
         var s = document.createElement('style');
         s.id = 'clinical-assistant-layout';
@@ -62,6 +64,84 @@
             '#' + SIDEBAR_ID + ' { flex: 0 0 ' + SIDEBAR_WIDTH + 'px; width: ' + SIDEBAR_WIDTH + 'px; height: 100%; border-left: 1px solid #d1d5db; background: #fff; box-shadow: 0 14px 34px rgba(15,23,42,0.12); z-index: 2147480000; }' +
             '#' + SIDEBAR_ID + ' > iframe { width: 100%; height: 100%; border: 0; }';
         document.head.appendChild(s);
+    }
+
+    function setupContextBridge(frame) {
+        var pollId = setInterval(function () {
+            if (typeof app_view_model === 'undefined' || !app_view_model.application_data) {
+                return;
+            }
+            clearInterval(pollId);
+            initBridge();
+        }, 250);
+
+        function initBridge() {
+            var encSub = null;
+
+            function getActivePageUrl() {
+                try {
+                    var tabs = app_view_model.application_data.tabs.tabsList();
+                    for (var i = 0; i < tabs.length; i++) {
+                        if (tabs[i].visible() && !tabs[i].locked()) {
+                            return tabs[i].url() || '';
+                        }
+                    }
+                } catch (e) { /* tabs not ready */ }
+                return window.location.pathname;
+            }
+
+            function sendContext() {
+                if (!frame.contentWindow) {
+                    return;
+                }
+                var patient = app_view_model.application_data.patient();
+                frame.contentWindow.postMessage({
+                    type: 'clinical-assistant-context',
+                    pid: patient ? String(patient.pid()) : null,
+                    pname: patient ? patient.pname() : null,
+                    encounter_id: patient && patient.selectedEncounterID()
+                        ? String(patient.selectedEncounterID()) : null,
+                    page_url: getActivePageUrl()
+                }, '*');
+            }
+
+            function watchPatient(patient) {
+                if (encSub) { encSub.dispose(); encSub = null; }
+                if (patient && patient.selectedEncounterID) {
+                    encSub = patient.selectedEncounterID.subscribe(function () {
+                        sendContext();
+                    });
+                }
+            }
+
+            function watchTabs() {
+                var tabs = app_view_model.application_data.tabs.tabsList();
+                for (var i = 0; i < tabs.length; i++) {
+                    tabs[i].visible.subscribe(function () { sendContext(); });
+                }
+                app_view_model.application_data.tabs.tabsList.subscribe(function (changes) {
+                    for (var ci = 0; ci < changes.length; ci++) {
+                        if (changes[ci].status === 'added') {
+                            changes[ci].value.visible.subscribe(function () {
+                                sendContext();
+                            });
+                        }
+                    }
+                    sendContext();
+                }, null, 'arrayChange');
+            }
+
+            app_view_model.application_data.patient.subscribe(function (newPatient) {
+                watchPatient(newPatient);
+                sendContext();
+            });
+
+            watchPatient(app_view_model.application_data.patient());
+            watchTabs();
+
+            frame.addEventListener('load', function () { sendContext(); });
+            if (frame.contentWindow) { sendContext(); }
+        }
     }
 
     if (document.readyState === 'loading') {

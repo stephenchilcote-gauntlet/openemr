@@ -39,47 +39,55 @@ if ($sessionPid) {
 <aside class="sidebar" id="sidebar-root">
     <header class="sidebar-header">
         <div class="title-row">
-            <h1>Clinical Assistant</h1>
+            <span class="header-title">Clinical Assistant</span>
+            <div class="header-actions">
+                <button id="history-toggle" class="header-btn" title="Conversation history">History</button>
+                <button id="new-conversation" class="header-btn" title="New conversation">+ New</button>
+            </div>
+        </div>
+        <div class="context-bar">
+            <div class="context-row" id="context-line">No patient selected</div>
             <div class="status-pill" id="status-pill" data-state="ready" aria-live="polite">
                 <span class="status-dot" id="status-dot"></span>
                 <span id="status-text">Ready</span>
             </div>
         </div>
-        <div class="context-row" id="context-line">No patient selected</div>
-        <div class="header-controls">
-            <label class="visually-hidden" for="history-select">Conversation history</label>
-            <select id="history-select" class="clickable" title="Conversation history"></select>
-            <button id="new-conversation" class="clickable">New Conversation</button>
-        </div>
+        <div class="session-id-row hidden" id="session-id-row"></div>
     </header>
 
-    <main class="chat-shell">
+    <div id="history-panel" class="history-panel hidden">
+        <div id="history-list" class="history-list"></div>
+    </div>
+
+    <main class="chat-shell" id="chat-shell">
         <section id="chat-area" class="chat-area" aria-live="polite"></section>
-        <button id="new-messages-pill" class="new-messages-pill clickable hidden">↓ New messages</button>
+        <button id="new-messages-pill" class="new-messages-pill hidden">↓ New messages</button>
     </main>
 
     <section id="review-panel" class="review-panel hidden">
         <div class="review-header">
             <strong>Review Suggested Changes</strong>
             <div class="review-header-actions">
-                <button id="apply-all" class="clickable">Apply All</button>
-                <button id="reject-all" class="clickable">Reject All</button>
+                <button id="apply-all" class="btn-sm btn-accent">Apply All</button>
+                <button id="reject-all" class="btn-sm btn-muted">Reject All</button>
             </div>
         </div>
         <div id="review-cards" class="review-cards"></div>
         <div class="review-footer">
             <span id="review-summary">No pending changes.</span>
-            <button id="execute-button" class="clickable">Execute Changes</button>
+            <button id="execute-button" class="btn-sm btn-accent">Execute Changes</button>
         </div>
     </section>
 
     <footer class="input-bar">
-        <label class="visually-hidden" for="chat-input">Message</label>
-        <textarea id="chat-input" rows="1" maxlength="12000" placeholder="Ask for chart help, coding suggestions, or review-ready updates..."></textarea>
-        <div class="input-meta">
-            <span id="char-counter" class="char-counter hidden">0 / 8000</span>
-            <button id="send-button" class="clickable">Send</button>
+        <div class="input-row">
+            <label class="visually-hidden" for="chat-input">Message</label>
+            <textarea id="chat-input" rows="1" maxlength="12000" placeholder="Ask about charts, orders, clinical notes…"></textarea>
+            <button id="send-button" class="send-btn" title="Send message" disabled>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 14V2M8 2L3 7M8 2L13 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
         </div>
+        <span id="char-counter" class="char-counter hidden">0 / 8000</span>
     </footer>
 </aside>
 
