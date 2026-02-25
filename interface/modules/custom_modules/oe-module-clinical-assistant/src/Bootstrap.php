@@ -20,6 +20,17 @@ class Bootstrap
 {
     private const EMBED_SCRIPT = '/interface/modules/custom_modules/oe-module-clinical-assistant/public/assets/embed.js';
 
+    public function __construct()
+    {
+        // Inject script via output buffering to ensure it appears on every page
+        ob_start(function($buffer) {
+            $script = '<script src="' . CacheUtils::addAssetCacheParamToPath(self::EMBED_SCRIPT) . '"></script>';
+            // Insert before closing body tag
+            $buffer = str_replace('</body>', $script . "\n</body>", $buffer);
+            return $buffer;
+        });
+    }
+
     public function subscribeToEvents(EventDispatcherInterface $eventDispatcher): void
     {
         $eventDispatcher->addListener(StyleFilterEvent::EVENT_NAME, $this->injectEmbedScript(...));
