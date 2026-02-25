@@ -16,15 +16,6 @@
 // Set up autoloader as early as possible
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-// Inject Clinical Assistant sidebar on all pages via output buffer
-ob_start(function($buffer) {
-    if (strpos($buffer, '</body>') !== false && !preg_match('/\/interface\/login\//', $_SERVER['REQUEST_URI'] ?? '')) {
-        $script = '<script src="/interface/modules/custom_modules/oe-module-clinical-assistant/public/assets/embed.js"></script>';
-        $buffer = str_replace('</body>', $script . "\n</body>", $buffer);
-    }
-    return $buffer;
-}, PHP_OUTPUT_HANDLER_FLUSHABLE | PHP_OUTPUT_HANDLER_CLEANABLE);
-
 // Checks if the server's PHP version is compatible with OpenEMR:
 $response = OpenEMR\Common\Compatibility\Checker::checkPhpVersion();
 if ($response !== true) {
