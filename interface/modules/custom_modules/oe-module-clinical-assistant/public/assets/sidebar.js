@@ -60,6 +60,8 @@ class SidebarApp {
     if (!this.state.sessionID) {
       await this.createSession()
     }
+
+    this.toggleSend(true)
   }
 
   bindEvents() {
@@ -123,6 +125,24 @@ class SidebarApp {
   }
 
   refreshContext() {
+    try {
+      const top = window.top || window.parent || window
+      const appData = top.app_view_model && top.app_view_model.application_data
+      if (appData) {
+        const patient = appData.patient && appData.patient()
+        if (patient) {
+          const pid = patient.pid ? patient.pid() : null
+          if (pid) {
+            this.state.patientID = String(pid)
+            this.state.patientName = patient.pname ? patient.pname() : null
+            this.state.encounterID = patient.selectedEncounterID ? String(patient.selectedEncounterID()) : null
+            this.updateContextLine()
+            return
+          }
+        }
+      }
+    } catch (_e) { /* cross-origin or view model not available */ }
+
     const ctx = window.OPENEMR_SESSION_CONTEXT || {}
     this.state.patientID = ctx.pid || null
     this.state.encounterID = ctx.encounter || null
